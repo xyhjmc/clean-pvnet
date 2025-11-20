@@ -1,6 +1,53 @@
 import torch
-import lib.csrc.ransac_voting.ransac_voting as ransac_voting
 import numpy as np
+
+
+def _generate_hypothesis(direct, coords, idxs):
+    """Compute intersection hypotheses for each vertex channel.
+
+    direct: [tn, vn, 2] direction vectors
+    coords: [tn, 2] coordinate positions
+    idxs:   [hn, vn, 2] indices of point pairs used for hypothesis
+    Returns: [hn, vn, 2] hypothesis locations
+    """
+    hn, vn, _ = idxs.shape
+    tn = coords.shape[0]
+
+    # Gather points and directions for the two samples per hypothesis
+    p1 = coords[idxs[:, :, 0]].view(hn, vn, 2)
+    p2 = coords[idxs[:, :, 1]].view(hn, vn, 2)
+    d1 = direct[idxs[:, :, 0]].view(hn, vn, 2)
+    d2 = direct[idxs[:, :, 1]].view(hn, vn, 2)
+
+    # Solve for intersection of two parametric lines in 2D:
+    # p1 + t1 * d1 = p2 + t2 * d2 => [d1, -d2] [t1, t2]^T = (p2 - p1)
+    A = torch.stack([d1, -d2], dim=-1)  # [hn, vn, 2, 2]
+    b = (p2 - p1).unsqueeze(-1)          # [hn, vn, 2, 1]
+
+    # Use pseudo-inverse for numerical stability
+    pinv = torch.linalg.pinv(A)
+    t = torch.matmul(pinv, b)
+    t1 = t[:, :, 0, 0]
+
+    hyp = p1 + t1.unsqueeze(-1) * d1
+    return hyp
+
+
+def _voting_for_hypothesis(direct, coords, hyp_pts, inlier_thresh):
+    """Evaluate inliers based on cosine similarity to predicted directions."""
+    hn, vn, _ = hyp_pts.shape
+    tn = coords.shape[0]
+
+    # Expand to broadcast over all points and hypotheses
+    coords_exp = coords.view(1, 1, tn, 2)
+    hyp_exp = hyp_pts.view(hn, vn, 1, 2)
+
+    pred_dirs = hyp_exp - coords_exp  # [hn, vn, tn, 2]
+    pred_dirs = torch.nn.functional.normalize(pred_dirs, dim=-1)
+    gt_dirs = torch.nn.functional.normalize(direct.view(1, vn, tn, 2), dim=-1)
+
+    cos_sim = torch.sum(pred_dirs * gt_dirs, dim=-1)
+    return cos_sim > inlier_thresh
 
 
 def ransac_voting_layer(mask, vertex, round_hyp_num, inlier_thresh=0.999, confidence=0.99, max_iter=20,
@@ -42,12 +89,9 @@ def ransac_voting_layer(mask, vertex, round_hyp_num, inlier_thresh=0.999, confid
 
         cur_iter = 0
         while True:
-            # generate hypothesis
-            cur_hyp_pts = ransac_voting.generate_hypothesis(direct, coords, idxs)  # [hn,vn,2]
+            cur_hyp_pts = _generate_hypothesis(direct, coords, idxs)  # [hn,vn,2]
 
-            # voting for hypothesis
-            cur_inlier = torch.zeros([round_hyp_num, vn, tn], dtype=torch.uint8, device=mask.device)
-            ransac_voting.voting_for_hypothesis(direct, coords, cur_hyp_pts, cur_inlier, inlier_thresh)  # [hn,vn,tn]
+            cur_inlier = _voting_for_hypothesis(direct, coords, cur_hyp_pts, inlier_thresh)
 
             # find max
             cur_inlier_counts = torch.sum(cur_inlier, 2)                   # [hn,vn]
@@ -71,9 +115,8 @@ def ransac_voting_layer(mask, vertex, round_hyp_num, inlier_thresh=0.999, confid
         normal = torch.zeros_like(direct)   # [tn,vn,2]
         normal[:,:, 0] = direct[:,:, 1]
         normal[:,:, 1] = -direct[:,:, 0]
-        all_inlier = torch.zeros([1, vn, tn], dtype=torch.uint8, device=mask.device)
         all_win_pts = torch.unsqueeze(all_win_pts, 0)  # [1,vn,2]
-        ransac_voting.voting_for_hypothesis(direct, coords, all_win_pts, all_inlier, inlier_thresh)  # [1,vn,tn]
+        all_inlier = _voting_for_hypothesis(direct, coords, all_win_pts, inlier_thresh).float()
 
         # coords [tn,2] normal [vn,tn,2]
         all_inlier = torch.squeeze(all_inlier.float(), 0)              # [vn,tn]
@@ -103,8 +146,8 @@ def b_inv(b_mat):
     '''
     eye = b_mat.new_ones(b_mat.size(-1)).diag().expand_as(b_mat)
     try:
-        b_inv, _ = torch.solve(eye, b_mat)
-    except:
+        b_inv = torch.linalg.solve(b_mat, eye)
+    except RuntimeError:
         b_inv = eye
     return b_inv
 
@@ -148,12 +191,9 @@ def ransac_voting_layer_v3(mask, vertex, round_hyp_num, inlier_thresh=0.999, con
 
         cur_iter = 0
         while True:
-            # generate hypothesis
-            cur_hyp_pts = ransac_voting.generate_hypothesis(direct, coords, idxs)  # [hn,vn,2]
+            cur_hyp_pts = _generate_hypothesis(direct, coords, idxs)  # [hn,vn,2]
 
-            # voting for hypothesis
-            cur_inlier = torch.zeros([round_hyp_num, vn, tn], dtype=torch.uint8, device=mask.device)
-            ransac_voting.voting_for_hypothesis(direct, coords, cur_hyp_pts, cur_inlier, inlier_thresh)  # [hn,vn,tn]
+            cur_inlier = _voting_for_hypothesis(direct, coords, cur_hyp_pts, inlier_thresh)
 
             # find max
             cur_inlier_counts = torch.sum(cur_inlier, 2)                   # [hn,vn]
@@ -177,9 +217,8 @@ def ransac_voting_layer_v3(mask, vertex, round_hyp_num, inlier_thresh=0.999, con
         normal = torch.zeros_like(direct)   # [tn,vn,2]
         normal[:, :, 0] = direct[:, :, 1]
         normal[:, :, 1] = -direct[:, :, 0]
-        all_inlier = torch.zeros([1, vn, tn], dtype=torch.uint8, device=mask.device)
         all_win_pts = torch.unsqueeze(all_win_pts, 0)  # [1,vn,2]
-        ransac_voting.voting_for_hypothesis(direct, coords, all_win_pts, all_inlier, inlier_thresh)  # [1,vn,tn]
+        all_inlier = _voting_for_hypothesis(direct, coords, all_win_pts, inlier_thresh).float()
 
         # coords [tn,2] normal [vn,tn,2]
         all_inlier = torch.squeeze(all_inlier.float(), 0)              # [vn,tn]
@@ -235,11 +274,10 @@ def estimate_voting_distribution_with_mean(mask, vertex, mean, round_hyp_num=256
             idxs = torch.zeros([round_hyp_num, vn, 2], dtype=torch.int32, device=mask.device).random_(0, direct.shape[0])
 
             # generate hypothesis
-            hyp_pts = ransac_voting.generate_hypothesis(direct, coords, idxs)  # [hn,vn,2]
+            hyp_pts = _generate_hypothesis(direct, coords, idxs)  # [hn,vn,2]
 
             # voting for hypothesis
-            inlier = torch.zeros([round_hyp_num, vn, tn], dtype=torch.uint8, device=mask.device)
-            ransac_voting.voting_for_hypothesis(direct, coords, hyp_pts, inlier, inlier_thresh)  # [hn,vn,tn]
+            inlier = _voting_for_hypothesis(direct, coords, hyp_pts, inlier_thresh)
             inlier_ratio = torch.sum(inlier, 2)                     # [hn,vn]
             inlier_ratio = inlier_ratio.float()/foreground.float()    # ratio
 
