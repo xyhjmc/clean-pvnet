@@ -27,7 +27,15 @@ def _refine_with_weights(rvec, tvec, points_3d, points_2d, weights, camera_matri
         )
         return rvec, tvec
 
-    return cv2.solvePnPRefineLM(points_3d, points_2d, camera_matrix, rvec, tvec, weights)
+    return cv2.solvePnPRefineLM(
+        points_3d,
+        points_2d,
+        camera_matrix,
+        np.zeros((8, 1), dtype=np.float64),
+        rvec,
+        tvec,
+        weights,
+    )
 
 
 def uncertainty_pnp(points_2d, weights_2d, points_3d, camera_matrix):
