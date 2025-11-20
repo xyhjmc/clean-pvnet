@@ -105,7 +105,7 @@ class DCNv2Pooling(nn.Module):
         if DeformRoIPool is None:
             self.pool = nn.AdaptiveMaxPool2d((pooled_size, pooled_size))
         else:
-            self.pool = DeformRoIPool(pooled_size, pooled_size, spatial_scale)
+            self.pool = DeformRoIPool((pooled_size, pooled_size), spatial_scale)
 
     def forward(self, input, rois, offset=None):
         if isinstance(self.pool, nn.AdaptiveMaxPool2d):
