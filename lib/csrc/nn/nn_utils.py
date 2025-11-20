@@ -1,20 +1,22 @@
-from lib.csrc.nn._ext import lib, ffi
 import numpy as np
 
 
 def find_nearest_point_idx(ref_pts, que_pts):
-    assert(ref_pts.shape[1] == que_pts.shape[1] and 1 < que_pts.shape[1] <= 3)
-    pn1 = ref_pts.shape[0]
-    pn2 = que_pts.shape[0]
-    dim = ref_pts.shape[1]
+    """Vectorised nearest-neighbour search in pure NumPy.
 
-    ref_pts = np.ascontiguousarray(ref_pts[None,:,:], np.float32)
-    que_pts = np.ascontiguousarray(que_pts[None,:,:], np.float32)
-    idxs = np.zeros([1, pn2], np.int32)
+    Args:
+        ref_pts: reference points, shape ``(N, D)``.
+        que_pts: query points, shape ``(M, D)``.
+    Returns:
+        ``(M,)`` integer array containing the index of the closest reference
+        point for each query point.
+    """
+    assert ref_pts.shape[1] == que_pts.shape[1] and 1 < que_pts.shape[1] <= 3
+    ref_pts = np.asarray(ref_pts, dtype=np.float32)
+    que_pts = np.asarray(que_pts, dtype=np.float32)
 
-    ref_pts_ptr = ffi.cast('float *', ref_pts.ctypes.data)
-    que_pts_ptr = ffi.cast('float *', que_pts.ctypes.data)
-    idxs_ptr = ffi.cast('int *', idxs.ctypes.data)
-    lib.findNearestPointIdxLauncher(ref_pts_ptr, que_pts_ptr, idxs_ptr, 1, pn1, pn2, dim, 0)
-
-    return idxs[0]
+    # Compute squared distances efficiently using broadcasting.
+    diff = que_pts[:, None, :] - ref_pts[None, :, :]
+    dist2 = np.einsum("...i,...i->...", diff, diff)
+    idxs = np.argmin(dist2, axis=1).astype(np.int32)
+    return idxs
