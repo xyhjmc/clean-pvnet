@@ -27,6 +27,12 @@ def _refine_with_weights(rvec, tvec, points_3d, points_2d, weights, camera_matri
         )
         return rvec, tvec
 
+    criteria = (
+        cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
+        20,
+        1e-6,
+    )
+
     return cv2.solvePnPRefineLM(
         points_3d,
         points_2d,
@@ -34,7 +40,7 @@ def _refine_with_weights(rvec, tvec, points_3d, points_2d, weights, camera_matri
         np.zeros((8, 1), dtype=np.float64),
         rvec,
         tvec,
-        weights,
+        criteria,
     )
 
 
