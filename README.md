@@ -25,11 +25,11 @@ Another way is to use the following commands.
 
 1. Set up the python environment:
     ```
-    conda create -n pvnet python=3.7
+    conda create -n pvnet python=3.10
     conda activate pvnet
 
-    # install torch 1.1 built from cuda 9.0
-    pip install torch==1.1.0 -f https://download.pytorch.org/whl/cu90/stable
+    # install torch 2.9.1 and torchvision 0.24.1 built for CUDA 12.6
+    pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 
     pip install Cython==0.28.2
     sudo apt-get install libglfw3-dev libglfw3
@@ -39,7 +39,7 @@ Another way is to use the following commands.
     ```
     ROOT=/path/to/clean-pvnet
     cd $ROOT/lib/csrc
-    export CUDA_HOME="/usr/local/cuda-9.0"
+    export CUDA_HOME="/usr/local/cuda-12.6"
     cd nn
     python setup.py build_ext --inplace
     cd ../fps
