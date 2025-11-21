@@ -1,53 +1,62 @@
-"""Pure NumPy fallback implementation of farthest point sampling.
+"""Pure Python farthest point sampling backed by PyTorch operations.
 
-The original project relied on a custom C++/CFFI extension. To keep the
-codebase compatible with modern PyTorch environments without compiling
-native extensions, this implementation mirrors the greedy FPS algorithm
-in vectorised NumPy. It works for both CPU and GPU workflows because the
-output is converted back to NumPy before further processing.
+The original project shipped a bespoke C++ extension for FPS. That build
+path has been removed in favour of a lean implementation that works with
+either :class:`numpy.ndarray` inputs or :class:`torch.Tensor` inputs on CPU
+and GPU alike. The routine follows the standard greedy FPS strategy while
+avoiding native compilation and keeping the same return shape semantics as
+the legacy code.
 """
 
 import numpy as np
+import torch
 
 
-def _pairwise_squared_distance(pts):
-    """Compute pairwise squared distances for FPS."""
-    diff = pts[:, None, :] - pts[None, :, :]
-    return np.einsum("...i,...i->...", diff, diff)
+def _to_tensor(pts):
+    if isinstance(pts, np.ndarray):
+        return torch.from_numpy(pts)
+    if torch.is_tensor(pts):
+        return pts
+    raise TypeError("pts must be a numpy array or torch Tensor")
 
 
 def farthest_point_sampling(pts, sn, init_center=False):
-    """Greedy farthest point sampling implemented with NumPy only.
+    """Greedy farthest point sampling implemented with PyTorch only.
 
     Args:
-        pts: ``(N, 3)`` array of points.
+        pts: ``(N, 3)`` array of points or a ``(N, 3)`` tensor.
         sn: number of samples to return.
-        init_center: if True, start from the centroid instead of a random
+        init_center: if True, start from the centroid instead of the first
             point.
     """
-    assert pts.shape[1] == 3
-    pts = np.asarray(pts, dtype=np.float32)
-    pn = pts.shape[0]
-    sn = min(sn, pn)
+    pts_tensor = _to_tensor(pts).to(dtype=torch.float32)
+    assert pts_tensor.shape[1] == 3, "points must be of shape (N, 3)"
+
+    pn = pts_tensor.shape[0]
+    sn = min(int(sn), int(pn))
 
     if pn == 0:
         return pts
 
-    distances = _pairwise_squared_distance(pts)
-    selected = np.zeros(sn, dtype=np.int64)
+    device = pts_tensor.device
+    selected = torch.zeros(sn, dtype=torch.long, device=device)
 
     if init_center:
-        center = np.mean(pts, axis=0, keepdims=True)
-        start_idx = np.argmax(np.einsum("ni,ni->n", pts - center, pts - center))
+        center = pts_tensor.mean(dim=0, keepdim=True)
+        start_idx = torch.argmax(torch.sum((pts_tensor - center) ** 2, dim=1)).item()
     else:
         start_idx = 0
 
     selected[0] = start_idx
-    min_dist = distances[start_idx]
+    min_dist = torch.sum((pts_tensor - pts_tensor[start_idx]) ** 2, dim=1)
 
     for i in range(1, sn):
-        farthest = np.argmax(min_dist)
+        farthest = torch.argmax(min_dist)
         selected[i] = farthest
-        min_dist = np.minimum(min_dist, distances[farthest])
+        candidate_dist = torch.sum((pts_tensor - pts_tensor[farthest]) ** 2, dim=1)
+        min_dist = torch.minimum(min_dist, candidate_dist)
 
-    return pts[selected]
+    sampled = pts_tensor[selected]
+    if isinstance(pts, np.ndarray):
+        return sampled.cpu().numpy()
+    return sampled
