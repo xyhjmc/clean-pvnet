@@ -40,13 +40,11 @@ Another way is to use the following commands.
     ROOT=/path/to/clean-pvnet
     cd $ROOT/lib/csrc
     export CUDA_HOME="/usr/local/cuda-9.0"
-    cd ransac_voting
-    python setup.py build_ext --inplace
-    cd ../nn
+    cd nn
     python setup.py build_ext --inplace
     cd ../fps
     python setup.py build_ext --inplace
-    
+
     # If you want to run PVNet with a detector
     cd ../dcn_v2
     python setup.py build_ext --inplace
@@ -58,6 +56,10 @@ Another way is to use the following commands.
     sudo apt-get install libatlas-base-dev
     python setup.py build_ext --inplace
     ```
+
+    The RANSAC voting module no longer requires a custom CUDA extension—the
+    pure PyTorch implementation in `lib/csrc/ransac_voting/ransac_voting_gpu.py`
+    is used directly.
 3. Set up datasets:
     ```
     ROOT=/path/to/clean-pvnet
