@@ -1,3 +1,11 @@
+"""Pure PyTorch implementation of the RANSAC voting layer.
+
+This module replaces the previous CUDA/C++ extension so that the voting
+operations run directly with standard PyTorch kernels, simplifying
+installation while keeping GPU acceleration when tensors are on CUDA
+devices.
+"""
+
 import torch
 import numpy as np
 
