@@ -11,76 +11,35 @@ Any questions or discussions are welcomed!
 
 ## Introduction
 
-Thanks [Haotong Lin](https://github.com/haotongl) for providing the clean version of PVNet and reproducing the results.
+Thanks [Haotong Lin](https://github.com/haotongl) for providing the clean
+version of PVNet and reproducing the results.
 
-The structure of this project is described in [project_structure.md](project_structure.md).
+The structure of this project is described in
+[project_structure.md](project_structure.md).
 
 ## Installation
 
-One way is to set up the environment with docker. See [this](https://github.com/zju3dv/clean-pvnet/tree/master/docker).
+We support both Docker-based and native installations.
 
-Thanks **Floris Gaisser** for providing the docker implementation.
+- **Docker:** A ready-to-use environment is documented under
+  [`docker/`](https://github.com/zju3dv/clean-pvnet/tree/master/docker). Thanks
+  to **Floris Gaisser** for providing the implementation.
+- **Native setup:** Follow the step-by-step instructions in
+  [INSTALLATION.md](INSTALLATION.md) to configure the Python environment,
+  compile CUDA/C++ extensions, and link datasets. The guide includes notes for
+  optional modules such as the detector and uncertainty-driven PnP.
 
-Another way is to use the following commands.
+### Dataset downloads
 
-1. Set up the python environment:
-    ```
-    conda create -n pvnet python=3.10
-    conda activate pvnet
+After configuring your environment, download and link the datasets needed for
+training and evaluation:
 
-    # install torch 2.9.1 and torchvision 0.24.1 built for CUDA 12.6
-    pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
-
-    pip install Cython==0.28.2
-    sudo apt-get install libglfw3-dev libglfw3
-    pip install -r requirements.txt
-    ```
-2. Compile cuda extensions under `lib/csrc`:
-    ```
-    ROOT=/path/to/clean-pvnet
-    cd $ROOT/lib/csrc
-    export CUDA_HOME="/usr/local/cuda-12.6"
-    cd nn
-    python setup.py build_ext --inplace
-    cd ../fps
-    python setup.py build_ext --inplace
-
-    # If you want to run PVNet with a detector
-    cd ../dcn_v2
-    python setup.py build_ext --inplace
-
-    # If you want to use the uncertainty-driven PnP
-    cd ../uncertainty_pnp
-    sudo apt-get install libgoogle-glog-dev
-    sudo apt-get install libsuitesparse-dev
-    sudo apt-get install libatlas-base-dev
-    python setup.py build_ext --inplace
-    ```
-
-    The RANSAC voting module no longer requires a custom CUDA extension—the
-    pure PyTorch implementation in `lib/csrc/ransac_voting/ransac_voting_gpu.py`
-    is used directly.
-3. Set up datasets:
-    ```
-    ROOT=/path/to/clean-pvnet
-    cd $ROOT/data
-    ln -s /path/to/linemod linemod
-    ln -s /path/to/linemod_orig linemod_orig
-    ln -s /path/to/occlusion_linemod occlusion_linemod
-
-    # the following is used for tless
-    ln -s /path/to/tless tless
-    ln -s /path/to/cache cache
-    ln -s /path/to/SUN2012pascalformat sun
-    ```
-
-Download datasets which are formatted for this project:
 1. [linemod](https://drive.google.com/drive/folders/1nxGbqO2AYnHekatPZLgdFNahNwSErSoq?usp=sharing)
-2. [linemod_orig](https://drive.google.com/drive/folders/1nxGbqO2AYnHekatPZLgdFNahNwSErSoq?usp=sharing): The dataset includes the depth for each image.
+2. [linemod_orig](https://drive.google.com/drive/folders/1nxGbqO2AYnHekatPZLgdFNahNwSErSoq?usp=sharing): includes depth for each image.
 3. [occlusion linemod](https://drive.google.com/drive/folders/1nxGbqO2AYnHekatPZLgdFNahNwSErSoq?usp=sharing)
-4. [truncation linemod](https://1drv.ms/u/s!AtZjYZ01QjphfuDICdni1IIM4SE): Check [TRUNCATION_LINEMOD.md](TRUNCATION_LINEMOD.md) for the information about the Truncation LINEMOD dataset.
-5. [Tless](https://drive.google.com/drive/folders/1nxGbqO2AYnHekatPZLgdFNahNwSErSoq?usp=sharing): `cat tlessa* | tar xvf - -C .`.
-6. [Tless cache data](https://drive.google.com/drive/folders/1nxGbqO2AYnHekatPZLgdFNahNwSErSoq?usp=sharing): It is used for training and testing on Tless.
+4. [truncation linemod](https://1drv.ms/u/s!AtZjYZ01QjphfuDICdni1IIM4SE): see [TRUNCATION_LINEMOD.md](TRUNCATION_LINEMOD.md) for details.
+5. [Tless](https://drive.google.com/drive/folders/1nxGbqO2AYnHekatPZLgdFNahNwSErSoq?usp=sharing): extract with `cat tlessa* | tar xvf - -C .`.
+6. [Tless cache data](https://drive.google.com/drive/folders/1nxGbqO2AYnHekatPZLgdFNahNwSErSoq?usp=sharing): used for training and testing on Tless.
 7. [SUN2012pascalformat](http://groups.csail.mit.edu/vision/SUN/releases/SUN2012pascalformat.tar.gz)
 
 ## Testing
