@@ -50,8 +50,9 @@ export CUDA_HOME="/usr/local/cuda-12.6"
 cd nn && python setup.py build_ext --inplace
 cd ../fps && python setup.py build_ext --inplace
 
-# Optional: required only when using the detector
-cd ../dcn_v2 && python setup.py build_ext --inplace
+# The DCN-based heads rely on torchvision's native
+# `deform_conv2d`/`DeformRoIPool` kernels, so no extra build is required for
+# deformable convolutions.
 
 # Optional: required for uncertainty-driven PnP
 cd ../uncertainty_pnp
@@ -100,7 +101,6 @@ import importlib
 for mod in [
     'lib.csrc.nn._ext',
     'lib.csrc.fps._ext',
-    'lib.csrc.dcn_v2._ext',
 ]:
     try:
         importlib.import_module(mod)
